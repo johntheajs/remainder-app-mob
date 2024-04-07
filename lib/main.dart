@@ -9,6 +9,7 @@ import 'dao/reminder_dao.dart'; // Import MovieDAO
 import '../helpers/database_helper.dart'; // Import DatabaseHelper
 import 'package:intl/intl.dart';
 import './helpers/database_helper.dart'; // Import your database helper
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 
 
@@ -376,6 +377,7 @@ class _ReminderPageState extends State<ReminderPage> {
   late DateTime _selectedDate;
   late TimeOfDay _selectedTime;
   late TextEditingController _descriptionController;
+  late FlutterLocalNotificationsPlugin _flutterLocalNotificationsPlugin;
 
   @override
   void initState() {
@@ -384,6 +386,18 @@ class _ReminderPageState extends State<ReminderPage> {
     _selectedDate = DateTime.now();
     _selectedTime = TimeOfDay.now();
     _descriptionController = TextEditingController();
+
+    // Initialize FlutterLocalNotificationsPlugin
+    _initializeNotifications();
+  }
+
+  void _initializeNotifications() {
+    _flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+    final initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+    final initializationSettings =
+        InitializationSettings(android: initializationSettingsAndroid);
+    _flutterLocalNotificationsPlugin.initialize(initializationSettings);
   }
 
   @override
@@ -459,9 +473,10 @@ class _ReminderPageState extends State<ReminderPage> {
                       time: _selectedTime.format(context),
                       description: _descriptionController.text,
                     );
-                    // await DatabaseHelper.instance.insertReminder(reminder);
                     ReminderDAO remaindao = ReminderDAO();
                     await remaindao.insertReminder(reminder);
+                    // Show local notification
+                    _showNotification(reminder);
                     // Clear form fields
                     _titleController.clear();
                     _descriptionController.clear();
@@ -478,6 +493,23 @@ class _ReminderPageState extends State<ReminderPage> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  void _showNotification(Reminder reminder) async {
+    await _flutterLocalNotificationsPlugin.show(
+      0,
+      'Reminder',
+      'Title: ${reminder.title}\nDate: ${reminder.date}\nTime: ${reminder.time}\nDescription: ${reminder.description}',
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          'reminder_channel',
+          'Reminders',
+          // 'Channel for reminder notifications',
+          importance: Importance.high,
+          priority: Priority.high,
         ),
       ),
     );
@@ -511,12 +543,17 @@ class AllRemindersPage extends StatelessWidget {
               itemCount: reminders.length,
               itemBuilder: (context, index) {
                 Reminder reminder = reminders[index];
-                return ListTile(
-                  title: Text(reminder.title),
-                  subtitle: Text('${reminder.date} ${reminder.time}'),
-                  onTap: () {
-                    _showReminderDetails(context, reminder);
+                return GestureDetector(
+                  onLongPress: () {
+                    _showUpdateDialog(context, reminder);
                   },
+                  child: ListTile(
+                    title: Text(reminder.title),
+                    subtitle: Text('${reminder.date} ${reminder.time}'),
+                    onTap: () {
+                      _showReminderDetails(context, reminder);
+                    },
+                  ),
                 );
               },
             );
@@ -556,6 +593,52 @@ class AllRemindersPage extends StatelessWidget {
                 Navigator.of(context).pop();
               },
               child: Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Function to show update reminder dialog
+  void _showUpdateDialog(BuildContext context, Reminder reminder) {
+    TextEditingController titleController = TextEditingController(text: reminder.title);
+    TextEditingController descriptionController = TextEditingController(text: reminder.description);
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Update Reminder'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleController,
+                decoration: InputDecoration(labelText: 'Title'),
+              ),
+              TextField(
+                controller: descriptionController,
+                decoration: InputDecoration(labelText: 'Description'),
+              ),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Close dialog
+              },
+              child: Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                reminder.title = titleController.text;
+                reminder.description = descriptionController.text;
+                await reminderDAO.updateReminder(reminder);
+                Navigator.of(context).pop(); // Close dialog
+                // You can add further actions or UI updates as needed after updating the reminder
+              },
+              child: Text('Update'),
             ),
           ],
         );

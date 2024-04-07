@@ -34,4 +34,17 @@ class ReminderDAO {
       whereArgs: [id],
     );
   }
+
+
+  Future<int> updateReminder(Reminder reminder) async {
+  final Database db = await DatabaseHelper.database;
+  return await db.update(
+    'reminder',
+    reminder.toMap(),
+    where: 'id = ?',
+    whereArgs: [reminder.id],
+  );
+}
+
+
 }
